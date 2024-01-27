@@ -403,5 +403,5 @@ int main(int argc, char** argv) {
     // cout<<"hashing time "<<hashing/1000<<"ms"<<endl;
     cout <<"Total time including waiting and hashing for "<<myName<<": "<<(time_from(ttime_including_idle)+hashing)/1000<<" ms"<<endl;
     // hash time+running time
-    cout <<"-------"<<endl;
+    cout <<"---------"<<endl;
 }
