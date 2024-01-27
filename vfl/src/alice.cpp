@@ -285,6 +285,7 @@ int main(int argc, char** argv) {
         cout <<"A<-->C:CPUtime="<<(CPUTime-compute_time)/1000<<" ms,total_time="<<(total_time-compute_time)/1000<<" ms"<<endl;
         cout <<"A<-->C:total time(including waiting time)="<<time_from(ttime_including_idle)/1000<<" ms"<<endl;
         cout <<"A<-->C end, A<---->B begin"<<endl;
+        cout <<"A<-->B, A compute final payload time: "<<compute_time/1000<<" ms"<<endl;
         pack = clock_start();
         toAndyPacked = PackedArray_create(BITS, BUCKETS*3); // NELEMENTS/kk
         PackedArray_pack(toAndyPacked, 0, aliceTable2, BUCKETS);
@@ -402,5 +403,5 @@ int main(int argc, char** argv) {
     // cout<<"hashing time "<<hashing/1000<<"ms"<<endl;
     cout <<"Total time including waiting and hashing for "<<myName<<": "<<(time_from(ttime_including_idle)+hashing)/1000<<" ms"<<endl;
     // hash time+running time
-    
+    cout <<"-------"<<endl;
 }
