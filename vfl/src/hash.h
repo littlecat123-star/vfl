@@ -1,5 +1,5 @@
 #include <omp.h>
-
+#define kk 4
 using namespace std;
 
 
@@ -31,7 +31,7 @@ inline void computeCuckoo(BT *aliceInput, BT *h1, BT *h2, BT *h3, cuckooEntry **
     uint64_t quotient = UNIVERSE/BUCKETS;
 
     #pragma omp parallel for
-    for (size_t i = 0; i < NELEMENTS; i++) {
+    for (size_t i = 0; i < NELEMENTS/kk; i++) {
       // cout<<"i= "<<i<<endl;
       //Permutation-based hashing for arbitrary length hash tables
       BT xr = aliceInput[i] % (quotient);
@@ -112,7 +112,7 @@ inline void computeHash(BT *bobInput, BT *h1, BT *h2, BT *h3, bucket *_bobTable,
           uint64_t quotient = UNIVERSE/BUCKETS;
 
 	  //pragma omp parallel for 
-        for (size_t i = 0; i < 2*NELEMENTS; i++) {
+        for (size_t i = 0; i < NELEMENTS; i++) {
 
 	  //Permutation-based hashing
       BT xr = bobInput[i] % (quotient);

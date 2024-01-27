@@ -3,8 +3,10 @@
 #include "hash.h"
 #include "inv.h"
 
-#include "PackedArray.h"  // 
+#include "PackedArray.h"
 #include <omp.h>
+
+#define kk 4  // new,as size distance between A and C
 
 using namespace emp;
 using namespace std;
@@ -49,6 +51,7 @@ int main(int argc, char** argv) {
     PackedArray* fromAlicePacked = NULL;
     
     BT *fromAlice = NULL;
+    BT *fromAlicePayload = NULL;
     PackedArray* toAlicePacked = NULL;
     BT *toAlicePayload = NULL;
     PackedArray* toAlicePayloadPacked = NULL; //save corresponding payload
@@ -96,17 +99,17 @@ int main(int argc, char** argv) {
         toBobPacked = PackedArray_create(BITS, BUCKETS);
         aliceCuckooTable = (BT *) calloc(1, BUCKETS*sizeof(BT));
         toBob = (BT *) calloc(1, BUCKETS*sizeof(BT));
-        BT *aliceInput  = (BT*) calloc(1, NELEMENTS * sizeof(BT));
+        BT *aliceInput  = (BT*) calloc(1, (NELEMENTS/kk) * sizeof(BT));
         fromBob = (BT *) calloc(1, BETA*BUCKETS*sizeof(BT));
         fromBobPacked = PackedArray_create(BITS, BETA*BUCKETS);
         fromBobPayload = (BT *) calloc(1, BETA*BUCKETS*sizeof(BT)); // NEW
         fromBobPayloadPacked = PackedArray_create(BITS, BETA*BUCKETS); // NEW
         aliceTable2 = (BT *) calloc(1, 3*BUCKETS*sizeof(BT)); // new finally table size,3 hash functions
         //Fill Alice with fixed input
-	for (size_t i = 0; i<NELEMENTS; i++) {
+	for (size_t i = 0; i<NELEMENTS/kk; i++) {
 	  aliceInput[i] = i;
 	}
-        cout<<"NELEMENTS="<<NELEMENTS<<endl;
+        cout<<"NELEMENTS="<<NELEMENTS/kk<<endl;
 	
         cuckooEntry **bufAliceCuckooTable = (cuckooEntry **) calloc(1, BUCKETS*sizeof(cuckooEntry*));
 
@@ -138,6 +141,7 @@ int main(int argc, char** argv) {
 	
         //Compute $c$s for Bob
 	double elapsed = 0.0;
+        // double compute_time = 0.0;
         start=clock_start();
         for (size_t i = 0; i < BUCKETS; i++) {
             toBob[i] = (sA[i] - aliceCuckooTable[i] + MODULUS) % MODULUS;
@@ -145,7 +149,7 @@ int main(int argc, char** argv) {
         PackedArray_pack(toBobPacked, 0, toBob, BUCKETS);
 	elapsed = time_from(start);
 	CPUTime += elapsed;
-        cout <<"Alice sA - H(x) time: "<<elapsed/(1000)<<" ms"<<endl;
+        cout <<"Alice sA - H(x) and packed time: "<<elapsed/(1000)<<" ms"<<endl;
 
 	free(aliceCuckooTable);
 	free(aliceInput);
@@ -158,15 +162,16 @@ int main(int argc, char** argv) {
         bobTable = (BT *) calloc(1, BETA*BUCKETS*sizeof(BT));
         // bobTable2 = (BT *) calloc(1, BETA*BUCKETS*sizeof(BT)); // init the second hash table
         fromAlicePacked = PackedArray_create(BITS, BUCKETS);
-        PackedArray* fromAlicePayloadPacked = NULL; // new as Andy
-        fromAlicePayloadPacked = PackedArray_create(BITS, 3*BUCKETS);//new
+        // PackedArray* fromAlicePayloadPacked = NULL; // new as Andy
+        // fromAlicePayloadPacked = PackedArray_create(BITS, 3*BUCKETS);//new
         fromAlice = (BT *) calloc(1, BUCKETS*sizeof(BT));
+        fromAlicePayload = (BT *) calloc(1, 3*BUCKETS*sizeof(BT));
         toAlicePacked = PackedArray_create(BITS, BETA*BUCKETS);
         toAlicePayload = (BT *) calloc(1, BETA*BUCKETS*sizeof(BT)); // new
 	toAlicePayloadPacked = PackedArray_create(BITS, BETA*BUCKETS); // save the payload
         //Compute fixed input
-        BT *bobInput  = (BT*) malloc(2 * NELEMENTS * sizeof(BT));
-        for (size_t i = 0; i<2* NELEMENTS; i++) {
+        BT *bobInput  = (BT*) malloc(NELEMENTS * sizeof(BT));
+        for (size_t i = 0; i<NELEMENTS; i++) {
 	  bobInput[i] = i;
 	}
 	cout<<"NELEMENTS="<<NELEMENTS<<endl;
@@ -196,6 +201,8 @@ int main(int argc, char** argv) {
 
     cout <<"Connecting..."<<endl;
     double total_time = 0.0;
+    double compute_time = 0.0;
+
     auto ttime_including_idle = clock_start();  // waiting time
 
     //Server or local environment: NetIO* io = new NetIO(party==ALICE?nullptr:"127.0.0.1", port);
@@ -237,7 +244,7 @@ int main(int argc, char** argv) {
         CPUTime += time_from(pack);	
         elapsed = time_from(start);
         total_time += elapsed;
-        cout<<"Alice receive d"<<endl;
+        // cout<<"Alice receive d"<<endl;
         cout <<"Alice received d in "<<elapsed/1000<<" ms"<<endl;
         io->sync();     
         start=clock_start();
@@ -247,44 +254,59 @@ int main(int argc, char** argv) {
 	CPUTime += time_from(packpayload);	
         elapsed = time_from(start);
         total_time +=elapsed;
-        cout<<"Alice receive payload"<<endl;
+        // cout<<"Alice receive payload"<<endl;
         cout <<"Alice received payload in "<<elapsed/1000<<" ms"<<endl;
 	free(fromBobPacked);
         free(fromBobPayloadPacked); // new
         //Compute intersection
         start=clock_start();
         size_t match = 0;
-        cout<<"Alice compute psi"<<endl;
+        cout<<"Alice begin to compare"<<endl;
 	#pragma omp parallel for reduction(+:match)
         for (size_t i = 0; i < BUCKETS; i++) {
 	  for (size_t j = 0; j < BETA; j++) {
                 if (rA[i*BETA + j]==fromBob[i * BETA + j]) {
                     match++;
                     // new
+                    auto startcompu = clock_start();
                     for (size_t k = 0; k < 3; k++) 
                     {
 		       aliceTable2[i*3 + k]=fromBobPayload[i*BETA + j]+k ; 
-                    }            
+                    } 
+                    auto end_compute=time_from(startcompu);
+                    compute_time +=end_compute;  // need to record compute time          
                     }
             }
         }
-        toAndyPacked = PackedArray_create(BITS, BUCKETS*3);
-        PackedArray_pack(toAndyPacked, 0, aliceTable2, BUCKETS);
         elapsed = time_from(start);
         total_time +=elapsed;
 	CPUTime+=elapsed;
-        cout <<"Alice computes the A-C psi and payload in "<<elapsed/1000<<" ms, size "<<match<<endl;
+        cout <<"Alice computes the A-C psi in "<<(elapsed-compute_time)/1000<<" ms, size "<<match<<endl;
+        cout <<"A<----->C:CPUtime="<<(CPUTime-compute_time)/1000<<" ms,total_time="<<(total_time-compute_time)/1000<<" ms"<<endl;
+        cout <<"A<----->C:total time(including waiting time)="<<time_from(ttime_including_idle)/1000<<" ms"<<endl;
+        cout<<"A<----->C end, A<---->B begin"<<endl;
+        pack = clock_start();
+        toAndyPacked = PackedArray_create(BITS, BUCKETS*3); // NELEMENTS/kk??
+        PackedArray_pack(toAndyPacked, 0, aliceTable2, BUCKETS);
+        elapsed = time_from(pack);
+        compute_time += elapsed;
+        CPUTime +=elapsed;
 	// send the finnal payload to compare  
         myLength = 4*PackedArray_bufferSize(toAndyPacked); 
-        cout <<"Alice sending the finnal payload "<<myLength<<" Bytes"<<endl;      
+        cout <<"Alice sending the finnal payload to party B "<<myLength<<" Bytes"<<endl;      
         io->sync();
         start=clock_start();
 	mySend(io, (char*) toAndyPacked, myLength);	
         elapsed = time_from(start);
+        compute_time += elapsed;
         total_time +=elapsed;
-        cout <<"Alice sent finall payload in "<<elapsed/1000<<" ms"<<endl;
+        // compute_time +=elapsed;
+        cout <<"Alice send finall payload in "<<elapsed/1000<<" ms"<<endl;
+        cout <<"A<------>B total time="<< compute_time/1000<<" ms"<<endl;
 	free(toAndyPacked);
+        
 	//END ALICE
+
     } else {
         //BOB
 
@@ -323,7 +345,7 @@ int main(int argc, char** argv) {
         elapsed = time_from(start);
         total_time +=elapsed;
 	CPUTime+=elapsed;
-        cout <<"Bob computes answer in "<<elapsed/1000<<" ms"<<endl;
+        cout <<"Bob computes d,payload and pack in "<<elapsed/1000<<" ms"<<endl;
 
 	free(fromAlice);
 	free(bobTable);
@@ -355,14 +377,15 @@ int main(int argc, char** argv) {
         PackedArray* fromAlicePayloadPacked = NULL; // new as Andy
         fromAlicePayloadPacked = PackedArray_create(BITS, 3*BUCKETS);//new    
         myLength = 4*PackedArray_bufferSize(fromAlicePayloadPacked);
-        cout <<"Andy receiving "<<myLength<<" Bytes"<<endl;
+        // cout <<"Andy receiving "<<myLength<<" Bytes"<<endl;
         io->sync();  
         //io->recv_data(fromAlicePacked, myLength);
-	myRecv(io, (char *) fromAlicePayloadPacked, myLength); // cannot receive?
+	myRecv(io, (char *) fromAlicePayloadPacked, myLength); 
         cout<<"Andy receiving payload from alice "<<endl;
+        PackedArray_unpack(fromAlicePayloadPacked, 0, fromAlicePayload, 3*BUCKETS);
         free(fromAlicePayloadPacked);
         elapsed = time_from(start);
-        cout<<"Andy receive final payloadk in "<<elapsed/1000<<" ms"<<endl;
+        cout<<"Andy receive final payload and unpack in "<<elapsed/1000<<" ms"<<endl;
 
 
     }
