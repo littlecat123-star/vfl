@@ -149,7 +149,7 @@ int main(int argc, char** argv) {
         PackedArray_pack(toBobPacked, 0, toBob, BUCKETS);
 	elapsed = time_from(start);
 	CPUTime += elapsed;
-        cout <<"Alice sA - H(x) and packed time: "<<elapsed/(1000)<<" ms"<<endl;
+        cout <<"Alice compute c and pack time: "<<elapsed/(1000)<<" ms"<<endl;
 
 	free(aliceCuckooTable);
 	free(aliceInput);
@@ -245,7 +245,7 @@ int main(int argc, char** argv) {
         elapsed = time_from(start);
         total_time += elapsed;
         // cout<<"Alice receive d"<<endl;
-        cout <<"Alice received d in "<<elapsed/1000<<" ms"<<endl;
+        cout <<"Alice receive and unpack d  in "<<elapsed/1000<<" ms"<<endl;
         io->sync();     
         start=clock_start();
         myRecv(io, (char*) fromBobPayloadPacked, myLength2); //new
@@ -255,7 +255,7 @@ int main(int argc, char** argv) {
         elapsed = time_from(start);
         total_time +=elapsed;
         // cout<<"Alice receive payload"<<endl;
-        cout <<"Alice received payload in "<<elapsed/1000<<" ms"<<endl;
+        cout <<"Alice receive and unpack payload in "<<elapsed/1000<<" ms"<<endl;
 	free(fromBobPacked);
         free(fromBobPayloadPacked); // new
         //Compute intersection
@@ -281,16 +281,17 @@ int main(int argc, char** argv) {
         elapsed = time_from(start);
         total_time +=elapsed;
 	CPUTime+=elapsed;
-        cout <<"Alice computes the A-C psi in "<<(elapsed-compute_time)/1000<<" ms, size "<<match<<endl;
-        cout <<"A<----->C:CPUtime="<<(CPUTime-compute_time)/1000<<" ms,total_time="<<(total_time-compute_time)/1000<<" ms"<<endl;
-        cout <<"A<----->C:total time(including waiting time)="<<time_from(ttime_including_idle)/1000<<" ms"<<endl;
-        cout<<"A<----->C end, A<---->B begin"<<endl;
+        cout <<"Alice compare r_A and d in "<<(elapsed-compute_time)/1000<<" ms, size "<<match<<endl;
+        cout <<"A<-->C:CPUtime="<<(CPUTime-compute_time)/1000<<" ms,total_time="<<(total_time-compute_time)/1000<<" ms"<<endl;
+        cout <<"A<-->C:total time(including waiting time)="<<time_from(ttime_including_idle)/1000<<" ms"<<endl;
+        cout <<"A<-->C end, A<---->B begin"<<endl;
         pack = clock_start();
-        toAndyPacked = PackedArray_create(BITS, BUCKETS*3); // NELEMENTS/kk??
+        toAndyPacked = PackedArray_create(BITS, BUCKETS*3); // NELEMENTS/kk
         PackedArray_pack(toAndyPacked, 0, aliceTable2, BUCKETS);
         elapsed = time_from(pack);
         compute_time += elapsed;
         CPUTime +=elapsed;
+        cout <<"A<-->B CPUTime="<< compute_time/1000<<" ms"<<endl;
 	// send the finnal payload to compare  
         myLength = 4*PackedArray_bufferSize(toAndyPacked); 
         cout <<"Alice sending the finnal payload to party B "<<myLength<<" Bytes"<<endl;      
@@ -302,7 +303,7 @@ int main(int argc, char** argv) {
         total_time +=elapsed;
         // compute_time +=elapsed;
         cout <<"Alice send finall payload in "<<elapsed/1000<<" ms"<<endl;
-        cout <<"A<------>B total time="<< compute_time/1000<<" ms"<<endl;
+        cout <<"A<-->B total time="<< compute_time/1000<<" ms"<<endl;
 	free(toAndyPacked);
         
 	//END ALICE
@@ -370,9 +371,10 @@ int main(int argc, char** argv) {
         total_time +=elapsed;
         cout <<"Bob sent payload in "<<elapsed/1000<<" ms"<<endl;       
         free(toAlicePayloadPacked);
-
-
-        // serve as Andy
+        cout <<"A<-->C:CPUtime="<<CPUTime/1000<<" ms,total_time="<<total_time/1000<<" ms"<<endl;
+        cout <<"A<-->C:total time(including waiting time)="<<time_from(ttime_including_idle)/1000<<" ms"<<endl;
+        
+        cout <<"below,BOb serve as Andy"<<endl;
         start=clock_start();
         PackedArray* fromAlicePayloadPacked = NULL; // new as Andy
         fromAlicePayloadPacked = PackedArray_create(BITS, 3*BUCKETS);//new    
@@ -382,11 +384,12 @@ int main(int argc, char** argv) {
         //io->recv_data(fromAlicePacked, myLength);
 	myRecv(io, (char *) fromAlicePayloadPacked, myLength); 
         cout<<"Andy receiving payload from alice "<<endl;
+        unpack = clock_start();
         PackedArray_unpack(fromAlicePayloadPacked, 0, fromAlicePayload, 3*BUCKETS);
+        cout <<"Andy unpack payload in "<<time_from(unpack)/1000<<" ms"<<endl;
         free(fromAlicePayloadPacked);
         elapsed = time_from(start);
         cout<<"Andy receive final payload and unpack in "<<elapsed/1000<<" ms"<<endl;
-
 
     }
 
