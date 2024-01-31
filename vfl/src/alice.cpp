@@ -2,7 +2,6 @@
 #include "ttp.h"
 #include "hash.h"
 #include "inv.h"
-
 #include "PackedArray.h"
 #include <omp.h>
 
@@ -41,6 +40,7 @@ int main(int argc, char** argv) {
 
     //let BOb be the corrordiantor (NEW)
     BT *bobTable2 = NULL;//save the 2-th ID hash
+    BT *AndyTable = NULL; //save the andy's final payload table
     // end new
 
     //Only known to Bob 
@@ -126,7 +126,7 @@ int main(int argc, char** argv) {
 	      //Mark as invalid
                 aliceCuckooTable[i] = 3*HASHELEMENTS;
             }
-        }
+        } // fill the cuckoo hash table
 
 	hashing = time_from(start);
 	CPUTime += hashing;
@@ -149,7 +149,7 @@ int main(int argc, char** argv) {
         PackedArray_pack(toBobPacked, 0, toBob, BUCKETS);
 	elapsed = time_from(start);
 	CPUTime += elapsed;
-        cout <<"Alice compute c and pack time: "<<elapsed/(1000)<<" ms"<<endl;
+        cout <<"Alice compute and pack c time: "<<elapsed/(1000)<<" ms"<<endl;
 
 	free(aliceCuckooTable);
 	free(aliceInput);
@@ -171,9 +171,10 @@ int main(int argc, char** argv) {
 	toAlicePayloadPacked = PackedArray_create(BITS, BETA*BUCKETS); // save the payload
         //Compute fixed input
         BT *bobInput  = (BT*) malloc(NELEMENTS * sizeof(BT));
+        
         for (size_t i = 0; i<NELEMENTS; i++) {
 	  bobInput[i] = i;
-	}
+	}  // fill with Bob's input
 	cout<<"NELEMENTS="<<NELEMENTS<<endl;
         bucket *_bobTable = (bucket*) calloc(1, BUCKETS*sizeof(bucket));
         bucket *_toAlicePayload = (bucket*) calloc(1, BUCKETS*sizeof(bucket)); // new
@@ -200,7 +201,7 @@ int main(int argc, char** argv) {
     }
 
     cout <<"Connecting..."<<endl;
-    double total_time = 0.0;
+    double total_time = 0.0;  // only consider the time when alice and bob begin to interact
     double compute_time = 0.0;
 
     auto ttime_including_idle = clock_start();  // waiting time
@@ -258,10 +259,11 @@ int main(int argc, char** argv) {
         cout <<"Alice receive and unpack payload in "<<elapsed/1000<<" ms"<<endl;
 	free(fromBobPacked);
         free(fromBobPayloadPacked); // new
-        //Compute intersection
-        start=clock_start();
+        
         size_t match = 0;
         cout<<"Alice begin to compare"<<endl;
+        //Compute intersection
+        start=clock_start();
 	#pragma omp parallel for reduction(+:match)
         for (size_t i = 0; i < BUCKETS; i++) {
 	  for (size_t j = 0; j < BETA; j++) {
@@ -283,14 +285,16 @@ int main(int argc, char** argv) {
 	CPUTime+=elapsed;
         cout <<"Alice compare r_A and d in "<<(elapsed-compute_time)/1000<<" ms, size "<<match<<endl;
         cout <<"A<-->C:CPUtime="<<(CPUTime-compute_time)/1000<<" ms,total_time="<<(total_time-compute_time)/1000<<" ms"<<endl;
-        cout <<"A<-->C:total time(including waiting time)="<<time_from(ttime_including_idle)/1000<<" ms"<<endl;
-        cout <<"A<-->C end, A<---->B begin"<<endl;
+        cout <<"A<-->C:total time(including waiting+hashing)="<<(time_from(ttime_including_idle)-compute_time+hashing)/1000<<" ms"<<endl;
+        cout <<"A<-->C finish, A<---->B begin"<<endl;
         cout <<"A<-->B, A compute final payload time: "<<compute_time/1000<<" ms"<<endl;
+        
+        toAndyPacked = PackedArray_create(BITS, BUCKETS*3); // NELEMENTS/kk  
         pack = clock_start();
-        toAndyPacked = PackedArray_create(BITS, BUCKETS*3); // NELEMENTS/kk
         PackedArray_pack(toAndyPacked, 0, aliceTable2, BUCKETS);
         elapsed = time_from(pack);
-        compute_time += elapsed;
+        compute_time +=elapsed;
+        total_time +=elapsed;
         CPUTime +=elapsed;
         cout <<"A<-->B CPUTime="<< compute_time/1000<<" ms"<<endl;
 	// send the finnal payload to compare  
@@ -326,14 +330,14 @@ int main(int argc, char** argv) {
 
         //io->recv_data(fromAlicePacked, myLength);
 	myRecv(io, (char *) fromAlicePacked, myLength); // cannot receive?
-        cout<<"receiving c"<<endl;
+        //cout<<"receiving c"<<endl;
 	auto unpack = clock_start();
         PackedArray_unpack(fromAlicePacked, 0, fromAlice, BUCKETS);
-        cout<<"unpack the c"<<endl;
+        // cout<<"unpack the c"<<endl;
 	auto elapsed = time_from(start);
 	CPUTime +=time_from(unpack);
         total_time +=elapsed;
-        cout <<"Bob received in "<<elapsed/1000<<" ms"<<endl;
+        cout <<"Bob receive and unpack c in "<<elapsed/1000<<" ms"<<endl;
 
 	free(fromAlicePacked);
         
@@ -341,16 +345,16 @@ int main(int argc, char** argv) {
         start = clock_start();
 	bobsOperations(bobTable, fromAlice, rB, sB, INV); // compute d,d is saved in bobTable
 	PackedArray_pack(toAlicePacked, 0, bobTable, BETA*BUCKETS); // pack
-        cout<<"BOb pack d"<<endl;
+        // cout<<"BOb pack d"<<endl;
 	PackedArray_pack(toAlicePayloadPacked, 0, toAlicePayload, BETA*BUCKETS); // new
-        cout<<"BOb pack payload"<<endl;
+        // cout<<"BOb pack payload"<<endl;
         elapsed = time_from(start);
         total_time +=elapsed;
 	CPUTime+=elapsed;
-        cout <<"Bob computes d,payload and pack in "<<elapsed/1000<<" ms"<<endl;
-
+        cout <<"Bob computes and pack d,payload in "<<elapsed/1000<<" ms"<<endl;
+        
 	free(fromAlice);
-	free(bobTable);
+	free(bobTable);      
         free(toAlicePayload); // NEW
 
 
@@ -373,25 +377,58 @@ int main(int argc, char** argv) {
         cout <<"Bob sent payload in "<<elapsed/1000<<" ms"<<endl;       
         free(toAlicePayloadPacked);
         cout <<"A<-->C:CPUtime="<<CPUTime/1000<<" ms,total_time="<<total_time/1000<<" ms"<<endl;
-        cout <<"A<-->C:total time(including waiting time)="<<time_from(ttime_including_idle)/1000<<" ms"<<endl;
+        cout <<"A<-->C:total time(including waiting+hashing)="<<(time_from(ttime_including_idle)+hashing)/1000<<" ms"<<endl;
         
-        cout <<"below,BOb serve as Andy"<<endl;
-        start=clock_start();
+        cout <<"below,Bob serve as Andy"<<endl;
+        // new 
+        AndyTable = (BT *) calloc(1, 3*BUCKETS*sizeof(BT)); 
         PackedArray* fromAlicePayloadPacked = NULL; // new as Andy
         fromAlicePayloadPacked = PackedArray_create(BITS, 3*BUCKETS);//new    
         myLength = 4*PackedArray_bufferSize(fromAlicePayloadPacked);
         // cout <<"Andy receiving "<<myLength<<" Bytes"<<endl;
+        start=clock_start();
         io->sync();  
         //io->recv_data(fromAlicePacked, myLength);
 	myRecv(io, (char *) fromAlicePayloadPacked, myLength); 
-        cout<<"Andy receiving payload from alice "<<endl;
+        // cout<<"Andy receiving payload from alice "<<endl;
         unpack = clock_start();
         PackedArray_unpack(fromAlicePayloadPacked, 0, fromAlicePayload, 3*BUCKETS);
-        cout <<"Andy unpack payload in "<<time_from(unpack)/1000<<" ms"<<endl;
-        free(fromAlicePayloadPacked);
+        CPUTime +=time_from(unpack);
+        cout <<"Andy unpack payload in "<<time_from(unpack)/1000<<" ms"<<endl;      
+        elapsed = time_from(start);   
+        compute_time +=elapsed;
+        free(fromAlicePayloadPacked); 
+        cout<<"Andy receive final and unpack payload  in "<<elapsed/1000<<" ms"<<endl;
+ 
+        for (size_t i = 0; i < BUCKETS; i++) {
+	  for (size_t j = 0; j < 3; j++) {
+                AndyTable[i*3+j] = fromAlicePayload[i*3+j]+1;
+          }
+        } // init andy's local final payload
+        size_t Andy_match = 0;
+        size_t flag = 0;
+        start = clock_start();
+        #pragma omp parallel for reduction(+:Andy_match)
+        for (size_t i = 0; i < BUCKETS; i++) {
+	  for (size_t j = 0; j < 3; j++) {
+                for (size_t ll = 0; ll < 3*BUCKETS; ll++) {
+                if (AndyTable[i*3+ j]==fromAlicePayload[ll]) {
+                    Andy_match++;
+                    flag = 1;
+                }
+                if (flag==1){ 
+                break;}
+        }          
+          if (flag==1){ 
+                flag=0;
+                break;}
+        }
+        }
         elapsed = time_from(start);
-        cout<<"Andy receive final payload and unpack in "<<elapsed/1000<<" ms"<<endl;
-
+        compute_time +=elapsed;
+        CPUTime +=elapsed;
+        cout<<"Andy compare locally in "<<elapsed/1000<<" ms, match:"<<Andy_match<<endl;
+        cout<<"A<-->B:Andy total time:"<<compute_time/1000<<" ms"<<endl;
     }
 
     cout <<"Total time for party "<<myName<<": "<<total_time/1000<<" ms, sent: "<<(io->counter)<<" Byte, i.e., "<<((double)io->counter)/(1024*1024)<<" MByte"<<endl;
