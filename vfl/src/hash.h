@@ -1,5 +1,5 @@
 #include <omp.h>
-#define kk 32
+#define kk 8
 using namespace std;
 
 
@@ -42,7 +42,7 @@ inline void computeCuckoo(BT *aliceInput, BT *h1, BT *h2, BT *h3, cuckooEntry **
 
       //Permutation-based hashing for arbitrary length hash tables
 	//Compute the 3 possible buckets
-	e->p[0] = (h1[xr] + xl) % BUCKETS;
+	      e->p[0] = (h1[xr] + xl) % BUCKETS;
         e->p[1] = (h2[xr] + xl) % BUCKETS;
         e->p[2] = (h3[xr] + xl) % BUCKETS;
 	
