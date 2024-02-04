@@ -5,7 +5,7 @@
 #include "PackedArray.h"
 #include <omp.h>
 
-#define kk 2  // new,as size distance between A and C
+#define kk 4  // new,as size distance between A and C
 
 using namespace emp;
 using namespace std;
@@ -402,7 +402,7 @@ int main(int argc, char** argv) {
  
         for (size_t i = 0; i < BUCKETS; i++) {
 	  for (size_t j = 0; j < 3; j++) {
-                AndyTable[i*3+j] = fromAlicePayload[i*3+j]+1;
+                AndyTable[i*3+j] = fromAlicePayload[i*3+j]+9;
           }
         } // init andy's local final payload
         size_t Andy_match = 0;
