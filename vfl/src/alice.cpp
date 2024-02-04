@@ -5,7 +5,7 @@
 #include "PackedArray.h"
 #include <omp.h>
 
-#define kk 4  // new,as size distance between A and C
+#define kk 16  // new,as size distance between A and C
 
 using namespace emp;
 using namespace std;
