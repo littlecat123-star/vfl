@@ -75,14 +75,12 @@ inline void computeCuckoo(BT *aliceInput, BT *h1, BT *h2, BT *h3, cuckooEntry **
 	    //Now, we are holding a different e in our hand
         }
     }
-    //cout<<"1"<<endl;
     //Add number indicating hash function to end of input!
     for (size_t i=0; i<BUCKETS; i++) {
         if(_aliceCuckooTable[i]!=NULL) {
             _aliceCuckooTable[i]->value = (_aliceCuckooTable[i]->value ) +  HASHELEMENTS*_aliceCuckooTable[i]->choice;
         }
     }
-    // cout<<"2"<<endl;
 
 }
 
@@ -97,7 +95,7 @@ inline void computeHashFunctions(PRG prg, BT *h1, BT *h2, BT *h3) {
      h2[i] = dist(gen);
      h3[i] = dist(gen);
      while (h2[i] == h1[i]) {
-	h2[i] = dist(gen);
+	      h2[i] = dist(gen);
      }
 
      while ((h3[i] == h1[i])||(h3[i] == h2[i])) {

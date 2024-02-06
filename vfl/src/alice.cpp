@@ -400,19 +400,27 @@ int main(int argc, char** argv) {
         free(fromAlicePayloadPacked); 
         cout<<"Andy receive final and unpack payload  in "<<elapsed/1000<<" ms"<<endl;
  
-        for (size_t i = 0; i < BUCKETS; i++) {
-	  for (size_t j = 0; j < 3; j++) {
-                AndyTable[i*3+j] = fromAlicePayload[i*3+j]+9;
-          }
-        } // init andy's local final payload
+        for (size_t i = 0; i < 3*BUCKETS; i++) {
+	//   for (size_t j = 0; j < 3; j++) {
+        //         AndyTable[i*3+j] = fromAlicePayload[i*3+j]+2*j;
+        //   }
+        AndyTable[i] = i+9;
+        } // init Andy's local final payload
         size_t Andy_match = 0;
+        size_t Andy_num = 0;
         size_t flag = 0;
         start = clock_start();
         #pragma omp parallel for reduction(+:Andy_match)
         for (size_t i = 0; i < BUCKETS; i++) {
 	  for (size_t j = 0; j < 3; j++) {
                 for (size_t ll = 0; ll < 3*BUCKETS; ll++) {
+                //if(fromAlicePayload[ll]){Andy_num++;break;}
                 if (AndyTable[i*3+ j]==fromAlicePayload[ll]) {
+                //     fromAlicePayload[ll]=0;
+                //     if(ll%3==0){fromAlicePayload[ll+1]=0;fromAlicePayload[ll+2]=0;}
+                //     if(ll%3==1){fromAlicePayload[ll-1]=0;fromAlicePayload[ll+1]=0;}
+                //     if(ll%3==2){fromAlicePayload[ll-1]=0;fromAlicePayload[ll-2]=0;}
+                //     
                     Andy_match++;
                     flag = 1;
                 }
@@ -427,7 +435,8 @@ int main(int argc, char** argv) {
         elapsed = time_from(start);
         compute_time +=elapsed;
         CPUTime +=elapsed;
-        cout<<"Andy compare locally in "<<elapsed/1000<<" ms, match:"<<Andy_match<<endl;
+        cout<<"Andy_num="<<Andy_num<<endl;
+        cout<<"Andy compare locally in "<<elapsed/60000000<<" min, match:"<<Andy_match<<endl;
         cout<<"A<-->B:Andy total time:"<<compute_time/1000<<" ms"<<endl;
     }
 
