@@ -1,5 +1,5 @@
 #include <omp.h>
-#define kk 64
+#define kk 16
 using namespace std;
 
 
