@@ -44,7 +44,11 @@ int main(int argc, char** argv) {
     PackedArray* fromBobPayloadPacked = NULL;
     BT *aliceTable2 = NULL; //save the finall payload table
     // before two item are used to save the payload from bob
-
+    // new alice real payload
+    BT *AliceRealPayload = NULL;
+    BT *AliceRealPayloadPadded = NULL;
+    
+    PackedArray* AliceRealPayloadPacked = NULL;
     //let BOb be the corrordiantor (NEW)
     BT *bobTable2 = NULL;//save the 2-th ID hash
     BT *AndyTable = NULL; //save the andy's final payload table
@@ -59,6 +63,7 @@ int main(int argc, char** argv) {
     //BT *AndyValue = NULL; // save the local value for andy
     BT *fromAlice = NULL;
     BT *fromAlicePayload = NULL;
+    BT *fromAliceRealPayload = NULL; // new for real payload
     PackedArray* toAlicePacked = NULL;
     BT *toAlicePayload = NULL;
     PackedArray* toAlicePayloadPacked = NULL; //save corresponding payload
@@ -111,10 +116,14 @@ int main(int argc, char** argv) {
         fromBobPacked = PackedArray_create(BITS, BETA*BUCKETS);
         fromBobPayload = (BT *) calloc(1, BETA*BUCKETS*sizeof(BT)); // NEW
         fromBobPayloadPacked = PackedArray_create(BITS, BETA*BUCKETS); // NEW
+        AliceRealPayload =(BT *) calloc(1, NELEMENTS/kk*sizeof(BT)); //new
+        AliceRealPayloadPadded = (BT *) calloc(1, BUCKETS*sizeof(BT)); // after padding
+        
         aliceTable2 = (BT *) calloc(1, 3*BUCKETS*sizeof(BT)); // new finally table size,3 hash functions
         //Fill Alice with fixed input
 	for (size_t i = 0; i<NELEMENTS/kk; i++) {
 	  aliceInput[i] = i;
+          AliceRealPayload[i] =i+10;
 	}
         std::cout<<"NELEMENTS="<<NELEMENTS/kk<<endl;
 	
@@ -129,9 +138,11 @@ int main(int argc, char** argv) {
         for (size_t i = 0; i < BUCKETS; i++) {
             if (bufAliceCuckooTable[i]!=NULL) {
                 aliceCuckooTable[i] = (bufAliceCuckooTable[i])->value;
+                AliceRealPayloadPadded[i] = AliceRealPayload[i];
             } else {
 	      //Mark as invalid
                 aliceCuckooTable[i] = 3*HASHELEMENTS;
+                AliceRealPayloadPadded[i] = i;
             }
         } // fill the cuckoo hash table
 
@@ -281,9 +292,10 @@ int main(int argc, char** argv) {
                     for (size_t k = 0; k < 3; k++) 
                     {
 		       aliceTable2[i*3 + k]=fromBobPayload[i*BETA + j]+k ; 
-                    } 
+                    }                   
                     auto end_compute=time_from(startcompu);
                     compute_time +=end_compute;  // need to record compute time          
+                    AliceRealPayloadPadded[i] = AliceRealPayloadPadded[i]+fromBobPayload[i*BETA + j]; // add noise
                     }
             }
         }
@@ -297,8 +309,11 @@ int main(int argc, char** argv) {
         std::cout <<"A<-->B, A compute final payload time: "<<compute_time/1000<<" ms"<<endl;
         
         toAndyPacked = PackedArray_create(BITS, BUCKETS*3); // NELEMENTS/kk  
+        AliceRealPayloadPacked = PackedArray_create(BITS, BUCKETS); // NEW 
         pack = clock_start();
-        PackedArray_pack(toAndyPacked, 0, aliceTable2, BUCKETS);
+        PackedArray_pack(toAndyPacked, 0, aliceTable2, 3*BUCKETS);
+        PackedArray_pack(AliceRealPayloadPacked, 0, AliceRealPayloadPadded, BUCKETS);
+
         elapsed = time_from(pack);
         compute_time +=elapsed;
         total_time +=elapsed;
@@ -310,14 +325,23 @@ int main(int argc, char** argv) {
         io->sync();
         start=clock_start();
 	mySend(io, (char*) toAndyPacked, myLength);	
+        // elapsed = time_from(start);
+        // compute_time += elapsed;
+        // total_time +=elapsed;
+        myLength = 4*PackedArray_bufferSize(AliceRealPayloadPacked);
+        std::cout <<"Alice sending the real payload to party B "<<myLength<<" Bytes"<<endl;      
+        io->sync();
+        // start=clock_start();
+	mySend(io, (char*) AliceRealPayloadPacked, myLength);	
         elapsed = time_from(start);
         compute_time += elapsed;
         total_time +=elapsed;
-        // compute_time +=elapsed;
+        // compute_time +=elapsed;      
         std::cout <<"Alice send finall payload in "<<elapsed/1000<<" ms"<<endl;
         std::cout <<"A<-->B total time="<< compute_time/1000<<" ms"<<endl;
 	free(toAndyPacked);
-        
+        free(AliceRealPayloadPacked);
+        free(AliceRealPayloadPadded);
 	//END ALICE
 
     } else {
@@ -383,6 +407,7 @@ int main(int argc, char** argv) {
         total_time +=elapsed;
         std::cout <<"Bob sent payload in "<<elapsed/1000<<" ms"<<endl;       
         free(toAlicePayloadPacked);
+
         std::cout <<"A<-->C:CPUtime="<<CPUTime/1000<<" ms,total_time="<<total_time/1000<<" ms"<<endl;
         std::cout <<"A<-->C:total time(including waiting+hashing)="<<(time_from(ttime_including_idle)+hashing)/1000<<" ms"<<endl;
         
@@ -393,18 +418,27 @@ int main(int argc, char** argv) {
         fromAlicePayloadPacked = PackedArray_create(BITS, 3*BUCKETS);//new    
         myLength = 4*PackedArray_bufferSize(fromAlicePayloadPacked);
         // cout <<"Andy receiving "<<myLength<<" Bytes"<<endl;
+        // new for receiving alice real payload
+        PackedArray* fromAliceRealPayloadPacked = NULL; // new as Andy
+        fromAliceRealPayloadPacked = PackedArray_create(BITS, BUCKETS);//new    
+        fromAliceRealPayload =(BT *) calloc(1, BUCKETS*sizeof(BT)); 
         start=clock_start();
         io->sync();  
         //io->recv_data(fromAlicePacked, myLength);
 	myRecv(io, (char *) fromAlicePayloadPacked, myLength); 
         // cout<<"Andy receiving payload from alice "<<endl;
+        myLength = 4*PackedArray_bufferSize(fromAliceRealPayloadPacked);
+        io->sync();  
+	myRecv(io, (char *) fromAliceRealPayloadPacked, myLength); 
         unpack = clock_start();
         PackedArray_unpack(fromAlicePayloadPacked, 0, fromAlicePayload, 3*BUCKETS);
+        PackedArray_unpack(fromAliceRealPayloadPacked, 0, fromAliceRealPayload, BUCKETS);
         CPUTime +=time_from(unpack);
         std::cout <<"Andy unpack payload in "<<time_from(unpack)/1000<<" ms"<<endl;      
         elapsed = time_from(start);   
         compute_time +=elapsed;
         free(fromAlicePayloadPacked); 
+        free(fromAliceRealPayloadPacked);
         std::cout<<"Andy receive final and unpack payload  in "<<elapsed/1000<<" ms"<<endl;
  
         for (size_t i = 0; i < BUCKETS; i++) {
@@ -417,12 +451,12 @@ int main(int argc, char** argv) {
         std::unordered_map<uint64_t, std::pair<uint64_t, uint64_t>> map_maskrecvOut2(m1), map_maskrecvOut1(m1);
         // std::vector<block> P2_intersection;
         // std::vector<block> AndyValue(m1);
-        std::vector<uint64_t> P2_Intersection_masks;
+        std::vector<uint64_t> P2_Intersection_masks,Payload;
         // PRNG prng_email(block(0,3));
         for (uint64_t i = 0; i < m1; i++)
         {
            //AndyValue[i] =i;
-           map_maskrecvOut2.emplace(*(uint64_t *)&AndyTable[i], std::pair<uint64_t, uint64_t>(AndyTable[i], i));
+           map_maskrecvOut2.emplace(*(uint64_t *)&AndyTable[i], std::pair<uint64_t, uint64_t>(AndyTable[i], i)); // insert one element
            map_maskrecvOut1.emplace(*(uint64_t *)&fromAlicePayload[i], std::pair<uint64_t, uint64_t>(fromAlicePayload[i], i));
         }   
         start = clock_start();    
@@ -435,6 +469,7 @@ int main(int argc, char** argv) {
                 //P2_i ntersection.push_back(AndyTable[match->second.second]);
                 P2_Intersection_masks.push_back(match->second.first);
                 Andy_match++;
+                Payload.push_back(fromAliceRealPayload[match->second.second/3]+match->second.second/3);
               }
         }
         
@@ -459,7 +494,7 @@ int main(int argc, char** argv) {
         elapsed = time_from(start);
         compute_time +=elapsed;
         CPUTime +=elapsed;
-        std::cout<<"Andy compare locally in "<<elapsed/1000<<" ms, match:"<<Andy_match<<endl;
+        std::cout<<"Andy compare locally and get payload in "<<elapsed/1000<<" ms, match:"<<Andy_match<<endl;
         std::cout<<"A<-->B:Andy total time:"<<compute_time/1000<<" ms"<<endl;
     }
 
