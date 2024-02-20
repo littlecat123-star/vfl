@@ -12,7 +12,7 @@
 // using namespace std::tr1;
 // using namespace std;
 
-#define kk 256  // new,as size distance between A and C
+#define kk 64  // new,as size distance between A and C
 
 using namespace emp;
 using namespace std;
