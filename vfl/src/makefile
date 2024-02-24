@@ -28,8 +28,11 @@ opt-sender: opt-sender.o PackedArraySIMD.o
 ot: ot.o
 	$(CC) $(LDFLAGS) -o ot ot.o -lcrypto 
 
-alice: alice.o PackedArraySIMD.o
-	$(CC) $(LDFLAGS) -o alice alice.o PackedArraySIMD.o  
+# paillier:paillier.o
+# 	$(CC) $(LDFLAGS) -o paillier paillier.o -lntl
+
+alice: alice.o PackedArraySIMD.o paillier.o
+	$(CC) $(LDFLAGS) -o alice alice.o PackedArraySIMD.o paillier.o -lntl
 	cp alice bob
 
 all: ot alice opt-sender 
