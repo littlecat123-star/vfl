@@ -16,7 +16,7 @@
    Alice's dummy elements will be 3 * 2^xRLEN, and Bob's will be 3 *
    2^xRLEN + 1.
  */
-#include "include-26.h"
+#include "include-24.h"
 // #include "include-22.h"
 #define NELEMENTS (1<<LOGN)
 
