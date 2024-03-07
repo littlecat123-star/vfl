@@ -17,7 +17,7 @@
 using namespace std;
 using namespace NTL;
 
-#define kk 1 // new,as size distance between A and C
+#define kk 16 // new,as size distance between A and C
 
 using namespace emp;
 int port, party;
